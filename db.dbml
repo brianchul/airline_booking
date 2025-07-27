@@ -1,0 +1,539 @@
+// Airline Booking System Database Schema
+// This DBML file defines the complete database schema for the airline booking system
+// supporting high concurrency, overbooking, and real-time inventory management
+
+Project airline_booking {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Airline Booking System Database
+    
+    This database schema supports:
+    - High concurrency booking operations
+    - Real-time inventory management
+    - Overbooking strategies
+    - Flight search optimization
+    - JWT-based authentication
+    - Audit logging and analytics
+  '''
+}
+
+// ============================================================================
+// CORE ENTITY TABLES
+// ============================================================================
+
+Table airlines {
+  id int [pk, increment]
+  code varchar(3) [unique, not null, note: 'IATA airline code']
+  name varchar(100) [not null, note: 'Airline name']
+  country varchar(2) [not null, note: 'Country code']
+  active boolean [default: true]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    code
+    country
+    active
+  }
+}
+
+Table airports {
+  id int [pk, increment]
+  code varchar(3) [unique, not null, note: 'IATA airport code']
+  name varchar(100) [not null, note: 'Airport name']
+  city varchar(50) [not null, note: 'City name']
+  country varchar(2) [not null, note: 'Country code']
+  timezone varchar(50) [not null, note: 'Timezone identifier']
+  latitude decimal(10,8) [note: 'Latitude coordinate']
+  longitude decimal(11,8) [note: 'Longitude coordinate']
+  active boolean [default: true]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    code
+    city
+    country
+    active
+  }
+}
+
+Table aircraft {
+  id int [pk, increment]
+  model varchar(50) [not null, note: 'Aircraft model']
+  manufacturer varchar(50) [not null, note: 'Aircraft manufacturer']
+  capacity_economy int [not null, note: 'Economy class capacity']
+  capacity_business int [default: 0, note: 'Business class capacity']
+  capacity_first int [default: 0, note: 'First class capacity']
+  total_capacity int [note: 'Generated column: economy + business + first']
+  active boolean [default: true]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    model
+    manufacturer
+    total_capacity
+    active
+  }
+}
+
+// ============================================================================
+// FLIGHT MANAGEMENT TABLES
+// ============================================================================
+
+Table flights {
+  id int [pk, increment]
+  flight_number varchar(10) [not null, note: 'Flight number']
+  airline_id int [not null, ref: > airlines.id]
+  departure_airport_id int [not null, ref: > airports.id]
+  arrival_airport_id int [not null, ref: > airports.id]
+  aircraft_id int [not null, ref: > aircraft.id]
+  base_price_economy decimal(10,2) [not null, note: 'Base price for economy class']
+  base_price_business decimal(10,2) [note: 'Base price for business class']
+  base_price_first decimal(10,2) [note: 'Base price for first class']
+  duration_minutes int [not null, note: 'Flight duration in minutes']
+  distance_km int [note: 'Flight distance in kilometers']
+  active boolean [default: true]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    flight_number
+    airline_id
+    (departure_airport_id, arrival_airport_id) [name: 'idx_route']
+    departure_airport_id
+    arrival_airport_id
+    aircraft_id
+    active
+    (flight_number, airline_id) [unique, name: 'uk_flight_airline']
+  }
+}
+
+Table flight_schedules {
+  id bigint [pk, increment]
+  flight_id int [not null, ref: > flights.id]
+  departure_time datetime [not null, note: 'Scheduled departure time']
+  arrival_time datetime [not null, note: 'Scheduled arrival time']
+  status enum('SCHEDULED', 'DELAYED', 'CANCELLED', 'DEPARTED', 'ARRIVED') [default: 'SCHEDULED']
+  gate varchar(10) [note: 'Departure gate']
+  terminal varchar(10) [note: 'Departure terminal']
+  actual_departure_time datetime [note: 'Actual departure time']
+  actual_arrival_time datetime [note: 'Actual arrival time']
+  delay_minutes int [default: 0, note: 'Delay in minutes']
+  cancellation_reason text [note: 'Reason for cancellation']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    flight_id
+    departure_time
+    arrival_time
+    status
+    (departure_time, arrival_time) [name: 'idx_date_range']
+    (flight_id, departure_time, status) [name: 'idx_search']
+  }
+  
+  Note: 'Partitioned by YEAR(departure_time) * 100 + MONTH(departure_time)'
+}
+
+// ============================================================================
+// INVENTORY MANAGEMENT TABLES
+// ============================================================================
+
+Table flight_inventory {
+  id bigint [pk, increment]
+  schedule_id bigint [not null, ref: > flight_schedules.id]
+  class_type enum('ECONOMY', 'BUSINESS', 'FIRST') [not null]
+  total_seats int [not null, note: 'Total seats for this class']
+  available_seats int [not null, note: 'Currently available seats']
+  reserved_seats int [default: 0, note: 'Temporarily reserved seats']
+  confirmed_seats int [default: 0, note: 'Confirmed booked seats']
+  blocked_seats int [default: 0, note: 'Blocked/maintenance seats']
+  overbooking_limit int [default: 0, note: 'Allowed overbooking count']
+  current_price decimal(10,2) [not null, note: 'Current dynamic price']
+  version int [default: 1, note: 'Optimistic locking version']
+  last_updated timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    schedule_id
+    class_type
+    (schedule_id, class_type, available_seats) [name: 'idx_availability']
+    (schedule_id, version) [name: 'idx_version']
+    (schedule_id, class_type) [unique, name: 'uk_schedule_class']
+  }
+  
+  Note: 'Constraint: available_seats + reserved_seats + confirmed_seats + blocked_seats <= total_seats + overbooking_limit'
+}
+
+// ============================================================================
+// BOOKING MANAGEMENT TABLES
+// ============================================================================
+
+Table users {
+  id bigint [pk, increment]
+  username varchar(50) [unique, not null]
+  password_hash varchar(255) [not null]
+  email varchar(100) [unique, not null]
+  phone varchar(20)
+  first_name varchar(50)
+  last_name varchar(50)
+  active boolean [default: true]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    username
+    email
+    active
+  }
+  
+  Note: 'Supports 3 hardcoded users for JWT authentication'
+}
+
+Table bookings {
+  id bigint [pk, increment]
+  booking_uuid varchar(36) [unique, not null, note: 'Public booking identifier']
+  user_id bigint [not null, ref: > users.id]
+  schedule_id bigint [not null, ref: > flight_schedules.id]
+  class_type enum('ECONOMY', 'BUSINESS', 'FIRST') [not null]
+  passenger_count tinyint [not null, default: 1, note: 'Number of passengers']
+  total_amount decimal(12,2) [not null, note: 'Total booking amount']
+  status enum('PENDING', 'QUEUED', 'PROCESSING', 'RESERVED', 'CONFIRMED', 'CANCELLED', 'EXPIRED', 'REFUNDED') [default: 'PENDING']
+  seat_numbers json [note: 'Assigned seat numbers']
+  special_requests text [note: 'Special passenger requests']
+  booking_source varchar(20) [default: 'WEB', note: 'Booking channel']
+  expires_at timestamp [note: 'Reservation expiry time']
+  confirmed_at timestamp [note: 'Booking confirmation time']
+  cancelled_at timestamp [note: 'Cancellation time']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    booking_uuid
+    user_id
+    schedule_id
+    status
+    expires_at
+    (user_id, status) [name: 'idx_user_status']
+    (schedule_id, status) [name: 'idx_schedule_status']
+    created_at
+  }
+}
+
+Table booking_passengers {
+  id bigint [pk, increment]
+  booking_id bigint [not null, ref: > bookings.id]
+  first_name varchar(50) [not null]
+  last_name varchar(50) [not null]
+  date_of_birth date [not null]
+  passport_number varchar(20)
+  nationality varchar(2) [note: 'Country code']
+  seat_number varchar(10) [note: 'Assigned seat']
+  meal_preference varchar(20)
+  special_needs text
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    booking_id
+    passport_number
+  }
+}
+
+Table booking_payments {
+  id bigint [pk, increment]
+  booking_id bigint [not null, ref: > bookings.id]
+  payment_method enum('CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'WALLET') [not null]
+  amount decimal(12,2) [not null]
+  currency varchar(3) [default: 'USD']
+  payment_status enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'REFUNDED') [default: 'PENDING']
+  transaction_id varchar(100) [unique, note: 'External payment gateway transaction ID']
+  gateway_response json [note: 'Payment gateway response']
+  processed_at timestamp [note: 'Payment processing time']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    booking_id
+    payment_status
+    transaction_id
+    processed_at
+  }
+}
+
+Table booking_status_log {
+  id bigint [pk, increment]
+  booking_id bigint [not null, ref: > bookings.id]
+  old_status varchar(20)
+  new_status varchar(20) [not null]
+  reason text
+  changed_by varchar(50) [note: 'System or user identifier']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    booking_id
+    new_status
+    created_at
+  }
+}
+
+// ============================================================================
+// OVERBOOKING MANAGEMENT TABLES
+// ============================================================================
+
+Table overbooking_rules {
+  id int [pk, increment]
+  airline_id int [not null, ref: > airlines.id]
+  aircraft_id int [ref: > aircraft.id, note: 'Specific aircraft or NULL for all']
+  route_type enum('DOMESTIC', 'INTERNATIONAL', 'ALL') [default: 'ALL']
+  class_type enum('ECONOMY', 'BUSINESS', 'FIRST', 'ALL') [default: 'ALL']
+  base_overbooking_rate decimal(5,2) [not null, note: 'Base overbooking percentage']
+  max_overbooking_rate decimal(5,2) [not null, note: 'Maximum overbooking percentage']
+  no_show_rate decimal(5,2) [not null, note: 'Expected no-show rate']
+  seasonal_factor decimal(3,2) [default: 1.00, note: 'Seasonal adjustment factor']
+  active boolean [default: true]
+  effective_from date [not null]
+  effective_to date [note: 'NULL means indefinite']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    airline_id
+    aircraft_id
+    (effective_from, effective_to) [name: 'idx_effective']
+    active
+  }
+}
+
+Table overbooking_history {
+  id bigint [pk, increment]
+  schedule_id bigint [not null, ref: > flight_schedules.id]
+  class_type enum('ECONOMY', 'BUSINESS', 'FIRST') [not null]
+  total_bookings int [not null, note: 'Total confirmed bookings']
+  actual_capacity int [not null, note: 'Actual aircraft capacity']
+  overbooking_count int [not null, note: 'Number of overbooked passengers']
+  no_show_count int [default: 0, note: 'Actual no-show passengers']
+  denied_boarding_count int [default: 0, note: 'Passengers denied boarding']
+  compensation_amount decimal(10,2) [default: 0, note: 'Total compensation paid']
+  resolution_status enum('RESOLVED', 'PENDING', 'ESCALATED') [default: 'PENDING']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    schedule_id
+    class_type
+    created_at
+    resolution_status
+  }
+}
+
+Table compensation_rules {
+  id int [pk, increment]
+  airline_id int [not null, ref: > airlines.id]
+  region varchar(10) [not null, note: 'Regulatory region (EU, US, etc.)']
+  flight_type enum('DOMESTIC', 'INTERNATIONAL') [not null]
+  delay_threshold_minutes int [not null, note: 'Minimum delay for compensation']
+  compensation_amount decimal(10,2) [not null, note: 'Compensation amount']
+  compensation_type enum('CASH', 'VOUCHER', 'MILES', 'UPGRADE') [not null]
+  priority_class_multiplier decimal(3,2) [default: 1.00, note: 'Multiplier for higher classes']
+  active boolean [default: true]
+  effective_from date [not null]
+  effective_to date [note: 'NULL means indefinite']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    airline_id
+    region
+    (effective_from, effective_to) [name: 'idx_effective']
+    active
+  }
+}
+
+// ============================================================================
+// SEARCH OPTIMIZATION TABLES
+// ============================================================================
+
+Table popular_routes {
+  id int [pk, increment]
+  departure_airport_id int [not null, ref: > airports.id]
+  arrival_airport_id int [not null, ref: > airports.id]
+  search_count bigint [default: 0]
+  booking_count bigint [default: 0]
+  last_searched timestamp
+  last_booked timestamp
+  score decimal(8,2) [note: 'Popularity score for cache prioritization']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    (departure_airport_id, arrival_airport_id) [unique, name: 'uk_route']
+    score
+    last_searched
+  }
+}
+
+Table search_analytics {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, note: 'NULL for anonymous users']
+  departure_airport_id int [ref: > airports.id]
+  arrival_airport_id int [ref: > airports.id]
+  departure_date date
+  return_date date [note: 'NULL for one-way']
+  passenger_count tinyint [default: 1]
+  class_preference enum('ECONOMY', 'BUSINESS', 'FIRST')
+  search_result_count int [note: 'Number of results returned']
+  response_time_ms int [note: 'Search response time']
+  converted_to_booking boolean [default: false]
+  user_agent text
+  ip_address varchar(45)
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    user_id
+    (departure_airport_id, arrival_airport_id) [name: 'idx_route']
+    departure_date
+    converted_to_booking
+    created_at
+  }
+  
+  Note: 'Partitioned by DATE(created_at) for efficient analytics queries'
+}
+
+// ============================================================================
+// SEAT MANAGEMENT TABLE
+// ============================================================================
+
+Table seat_maps {
+  id bigint [pk, increment]
+  aircraft_id int [not null, ref: > aircraft.id]
+  seat_number varchar(10) [not null, note: 'Seat identifier (e.g., 12A)']
+  class_type enum('ECONOMY', 'BUSINESS', 'FIRST') [not null]
+  seat_type enum('WINDOW', 'AISLE', 'MIDDLE') [not null]
+  row_number int [not null]
+  column_letter varchar(1) [not null]
+  is_exit_row boolean [default: false]
+  extra_legroom boolean [default: false]
+  blocked boolean [default: false, note: 'Permanently blocked seat']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    aircraft_id
+    (aircraft_id, seat_number) [unique, name: 'uk_aircraft_seat']
+    class_type
+    seat_type
+  }
+}
+
+Table seat_assignments {
+  id bigint [pk, increment]
+  schedule_id bigint [not null, ref: > flight_schedules.id]
+  seat_id bigint [not null, ref: > seat_maps.id]
+  booking_id bigint [ref: > bookings.id, note: 'NULL if seat is blocked/maintenance']
+  passenger_id bigint [ref: > booking_passengers.id]
+  status enum('AVAILABLE', 'RESERVED', 'CONFIRMED', 'BLOCKED') [default: 'AVAILABLE']
+  reserved_at timestamp [note: 'When seat was reserved']
+  confirmed_at timestamp [note: 'When seat was confirmed']
+  version int [default: 1, note: 'Optimistic locking version']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    schedule_id
+    seat_id
+    booking_id
+    passenger_id
+    status
+    (schedule_id, seat_id) [unique, name: 'uk_schedule_seat']
+    (schedule_id, status) [name: 'idx_schedule_status']
+  }
+}
+
+// ============================================================================
+// SYSTEM TABLES
+// ============================================================================
+
+Table system_settings {
+  id int [pk, increment]
+  setting_key varchar(100) [unique, not null]
+  setting_value text [not null]
+  setting_type enum('STRING', 'INTEGER', 'BOOLEAN', 'JSON') [default: 'STRING']
+  description text
+  is_public boolean [default: false, note: 'Whether setting can be exposed to frontend']
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [default: `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`]
+  
+  indexes {
+    setting_key
+    is_public
+  }
+}
+
+Table api_rate_limits {
+  id bigint [pk, increment]
+  identifier varchar(100) [not null, note: 'User ID, IP address, or API key']
+  endpoint varchar(200) [not null]
+  request_count int [default: 1]
+  window_start timestamp [not null]
+  expires_at timestamp [not null]
+  
+  indexes {
+    (identifier, endpoint) [name: 'idx_rate_limit']
+    expires_at
+  }
+  
+  Note: 'TTL table for rate limiting, records auto-expire'
+}
+
+// ============================================================================
+// INDEXES FOR HIGH PERFORMANCE QUERIES
+// ============================================================================
+
+// Flight search optimization indexes
+// These support the main search queries from the sequence diagrams
+
+// Complex flight search query optimization
+// Supports: departure_city, arrival_city, departure_date with various filters
+Table flight_search_index {
+  Note: '''
+    Virtual table representing optimized compound indexes for flight search:
+    
+    1. (departure_airport_id, arrival_airport_id, departure_time) - Main search
+    2. (departure_time, status, available_seats) - Date range with availability
+    3. (airline_id, departure_time) - Airline-specific searches
+    4. (base_price_economy, departure_time) - Price-based sorting
+    5. (duration_minutes, departure_time) - Duration-based sorting
+    
+    These indexes support pagination and real-time inventory checks
+    from the flight_query_sequence.mermaid
+  '''
+}
+
+// Booking performance indexes
+// These support the booking flow from booking_sequence.mermaid
+Table booking_performance_index {
+  Note: '''
+    Virtual table representing optimized compound indexes for booking operations:
+    
+    1. (schedule_id, class_type, status) - Inventory checks
+    2. (user_id, status, created_at) - User booking history
+    3. (booking_uuid, status) - Booking status tracking
+    4. (expires_at, status) - Expiry cleanup jobs
+    5. (schedule_id, version) - Optimistic locking for inventory
+    
+    These indexes support high-concurrency booking operations
+    and prevent race conditions in inventory management
+  '''
+}
+
+// ============================================================================
+// RELATIONSHIPS SUMMARY
+// ============================================================================
+
+// The schema supports the following key relationships:
+// 1. Airlines operate Flights using Aircraft between Airports
+// 2. Flights have Schedules which have Inventory by class
+// 3. Users create Bookings for specific Schedule/Class combinations
+// 4. Bookings have Passengers, Payments, and Status history
+// 5. Overbooking Rules govern Inventory limits and History tracking
+// 6. Seat Maps define Aircraft layout, Assignments track actual seats
+// 7. Analytics tables support search optimization and business intelligence
