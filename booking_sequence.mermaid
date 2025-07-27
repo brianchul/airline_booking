@@ -1,0 +1,185 @@
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant LB as Load Balancer
+    participant AG as API Gateway
+    participant A as API Service
+    participant R as Redis Cache
+    participant Q as Booking Queue
+    participant BS as Booking Service
+    participant DB as Database (Master)
+    participant SDB as Slave Database
+    participant MQ as Message Queue
+    participant CS as Cache Service
+    participant NS as Notification Service
+    participant AS as Analytics Service
+    participant ES as Email Service
+    participant SMS as SMS Service
+    participant PS as Payment Service
+    participant TS as Timer Service
+    participant ALERT as Alert Service
+
+    Note over U,ALERT: Phase 1: 用戶發起訂票請求
+    U->>F: 點擊"預訂"按鈕
+    F->>F: 驗證用戶輸入
+    F->>F: 生成 client-request-id
+    F->>F: 顯示"正在處理..."
+    F->>LB: POST /api/bookings
+    LB->>AG: 轉發請求
+    AG->>AG: 限流檢查 (每分鐘5次)
+    AG->>AG: 驗證用戶身份
+    AG->>R: 檢查防重複提交
+    R-->>AG: 無重複請求
+    AG->>AG: 生成 booking-uuid
+    AG->>A: 轉發請求
+    A-->>F: 返回 booking-uuid
+    F->>F: 啟動輪詢 (每2秒)
+
+    Note over U,ALERT: Phase 2: Redis-Only 庫存預檢和請求處理
+    A->>R: 檢查航班庫存快取
+    R-->>A: 返回快取庫存
+    A->>R: 檢查用戶活躍訂票數
+    R-->>A: 返回活躍數量
+
+    alt 庫存不足或超限
+        A-->>F: 直接返回錯誤
+    else 條件滿足
+        A->>R: 創建訂票請求快取
+        A->>R: 設置TTL 30分鐘
+        A->>R: 記錄防重複提交
+        A->>R: 添加到用戶活躍訂票
+        A->>Q: 放入優先級隊列
+        A->>R: 更新狀態為 QUEUED
+    end
+
+    loop 前端輪詢
+        F->>A: GET /api/bookings/{uuid}/status
+        A->>R: Redis查詢狀態
+        R-->>A: 返回狀態
+        A-->>F: 返回狀態 (QUEUED)
+    end
+
+    Note over U,ALERT: Phase 3: 庫存鎖定與精確處理
+    BS->>Q: 從隊列取出請求
+    Q-->>BS: 返回訂票請求
+    BS->>R: 讀取完整請求信息
+    R-->>BS: 返回請求詳情
+    BS->>R: 獲取分散式鎖
+    R-->>BS: 鎖定成功 (30秒)
+    BS->>DB: 查詢精確庫存
+    DB-->>BS: 返回精確數量
+
+    alt 精確庫存不足
+        BS->>R: 更新狀態為 FAILED
+        BS->>R: 釋放分散式鎖
+        BS->>R: 移除用戶活躍訂票
+        BS->>ALERT: 發送庫存不足告警
+    else 庫存充足
+        BS->>BS: 計算超賣策略
+        BS->>BS: 分配座位號
+        BS->>DB: 原子性庫存扣減
+        alt 扣減成功
+            DB-->>BS: 更新成功
+            BS->>R: 釋放鎖
+            BS->>R: 更新狀態為 PROCESSING
+        else 扣減失敗
+            DB-->>BS: 樂觀鎖衝突
+            BS->>R: 釋放鎖
+            BS->>Q: 重新入隊 (最多3次)
+        end
+    end
+
+    Note over U,ALERT: Phase 4: 訂票確認與支付準備
+    BS->>DB: 開始事務
+    BS->>DB: 創建訂票主記錄 (RESERVED)
+    BS->>DB: 創建乘客明細記錄
+    BS->>DB: 記錄座位分配
+    BS->>DB: 提交事務
+    DB-->>BS: 事務成功
+
+    BS->>TS: 設定預留超時 (15分鐘)
+    TS-->>BS: 超時任務設定
+    BS->>R: 更新狀態為 RESERVED
+
+    par Message Queue 異步處理
+        BS->>MQ: 發送庫存變更事件
+        BS->>MQ: 發送狀態變更事件
+        BS->>MQ: 發送用戶行為事件
+    and 並行消費處理
+        MQ->>CS: 庫存變更事件
+        CS->>R: 更新庫存快取
+        MQ->>NS: 狀態變更事件
+        NS->>NS: 準備預留通知
+        MQ->>AS: 用戶行為事件
+        AS->>AS: 更新用戶畫像
+    end
+
+    loop 前端輪詢
+        F->>A: GET /api/bookings/{uuid}/status
+        A->>R: 查詢狀態
+        R-->>A: 返回 RESERVED
+        A-->>F: 返回座位信息 + 倒數計時
+    end
+
+    F->>F: 跳轉支付頁面
+    F-->>U: 顯示訂票成功，15分鐘內支付
+
+    Note over U,ALERT: Phase 5: 支付處理與最終確認
+    U->>F: 進入支付頁面
+    F->>F: 啟動倒數計時 (15分鐘)
+
+    alt 支付超時情況
+        TS->>BS: 觸發超時事件
+        BS->>DB: 開始回滾事務
+        BS->>DB: 釋放座位預留
+        BS->>DB: 更新狀態為 EXPIRED
+        BS->>DB: 提交回滾
+        par 異步清理
+            BS->>R: 更新狀態為 EXPIRED
+            BS->>R: 更新庫存快取
+            BS->>R: 移除活躍訂票
+            BS->>MQ: 發送座位釋放事件
+            MQ->>NS: 發送超時通知
+        end
+        F-->>U: 顯示"訂票已過期"
+
+    else 用戶完成支付
+        U->>F: 點擊支付
+        F->>PS: 發起支付請求
+        PS->>PS: 處理第三方支付
+        PS-->>F: 支付成功
+        F->>BS: 通知支付成功
+        BS->>TS: 取消超時任務
+
+        BS->>DB: 開始確認事務
+        BS->>DB: 更新狀態為 CONFIRMED
+        BS->>DB: 座位轉移 (reserved→confirmed)
+        BS->>DB: 記錄支付信息
+        BS->>DB: 提交確認事務
+        DB-->>BS: 確認成功
+
+        BS->>R: 更新最終狀態
+        BS->>R: 移除活躍訂票記錄
+
+        par Message Queue 最終處理
+            BS->>MQ: 發送訂票完成事件
+            BS->>MQ: 發送支付成功事件
+            BS->>MQ: 發送庫存確認事件
+        and 並行消費
+            MQ->>NS: 訂票完成事件
+            NS->>ES: 發送確認郵件
+            NS->>SMS: 發送確認簡訊
+            MQ->>SDB: 同步到從庫
+            MQ->>AS: 支付分析事件
+        end
+
+        BS-->>F: 返回確認成功
+        F-->>U: 顯示電子票根
+    end
+
+    Note over U,ALERT: 錯誤處理與監控
+    alt 系統異常處理
+        BS->>ALERT: 發送系統異常告警
+        ALERT->>ALERT: 記錄錯誤日誌
+        ALERT->>NS: 通知運維團隊
+    end
