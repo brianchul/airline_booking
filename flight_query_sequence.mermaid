@@ -1,0 +1,125 @@
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant LB as Load Balancer
+    participant AG as API Gateway
+    participant A as API Service
+    participant R as Redis Cache
+    participant DB as Database (Master)
+    participant SDB as Slave Database
+    participant MQ as Message Queue
+    participant AS as Analytics Service
+    participant CS as Cache Service
+
+    Note over U,CS: Phase 1: 用戶發起查詢請求
+    U->>F: 輸入查詢條件 (出發地、目的地、日期等)
+    F->>F: 驗證查詢參數
+    F->>F: 生成查詢請求ID
+    F->>F: 顯示"查詢中..."
+    F->>LB: GET /api/flights/search
+    LB->>AG: 轉發查詢請求
+    AG->>AG: 限流檢查 (每分鐘20次)
+    AG->>AG: 驗證用戶身份 (可選)
+
+    Note over U,CS: Phase 2: 快取檢查與查詢優化
+    AG->>A: 轉發查詢請求
+    A->>A: 標準化查詢條件
+    A->>A: 生成查詢快取鍵
+    A->>R: 檢查查詢結果快取
+
+    alt 快取命中
+        R-->>A: 返回快取結果
+        A->>A: 檢查快取時效性 (5分鐘內)
+        A->>R: 記錄查詢統計
+        A-->>F: 返回航班列表
+        F->>F: 渲染查詢結果
+        F-->>U: 顯示可用航班
+
+    else 快取未命中或過期
+        A->>R: 檢查熱門路線快取
+
+        alt 熱門路線
+            R-->>A: 返回基礎航班資訊
+            A->>SDB: 查詢詳細座位庫存
+        else 一般路線
+            A->>SDB: 查詢完整航班資訊
+        end
+
+        SDB-->>A: 返回航班資料
+        A->>A: 過濾可售航班
+        A->>A: 計算價格與折扣
+        A->>A: 排序結果 (價格/時間)
+    end
+
+    Note over U,CS: Phase 3: 庫存即時檢查
+    A->>R: 批量檢查座位庫存快取
+    R-->>A: 返回庫存狀態
+
+    loop 每個航班
+        alt 庫存快取過期
+            A->>DB: 查詢精確庫存
+            DB-->>A: 返回即時庫存
+            A->>R: 更新庫存快取 (TTL 2分鐘)
+        end
+        A->>A: 標記可訂購狀態
+    end
+
+    A->>A: 組合最終查詢結果
+    A->>R: 快取查詢結果 (TTL 5分鐘)
+    A->>R: 記錄查詢行為
+    A-->>F: 返回完整航班列表
+
+    Note over U,CS: Phase 4: 結果展示與互動
+    F->>F: 渲染航班卡片
+    F->>F: 顯示價格、時間、座位數
+    F->>F: 添加篩選器
+    F-->>U: 展示查詢結果
+
+    par 異步處理
+        A->>MQ: 發送查詢行為事件
+    and 並行消費
+        MQ->>AS: 用戶查詢事件
+        AS->>AS: 更新熱門路線統計
+        AS->>AS: 分析用戶偏好
+        MQ->>CS: 快取優化事件
+        CS->>R: 預熱熱門查詢
+    end
+
+    Note over U,CS: Phase 5: 用戶篩選與排序
+    U->>F: 使用篩選條件 (價格範圍、航空公司等)
+    F->>F: 前端即時篩選
+    F-->>U: 更新顯示結果
+
+    U->>F: 變更排序方式
+    F->>F: 重新排序結果
+    F-->>U: 刷新航班順序
+
+    Note over U,CS: Phase 6: 選擇航班與預訂準備
+    U->>F: 點擊特定航班
+    F->>A: GET /api/flights/{id}/details
+    A->>R: 檢查航班詳情快取
+
+    alt 詳情快取存在
+        R-->>A: 返回詳細資訊
+    else 需要查詢
+        A->>SDB: 查詢航班詳情
+        SDB-->>A: 返回完整資訊
+        A->>R: 快取詳情 (TTL 10分鐘)
+    end
+
+    A->>DB: 查詢即時座位圖
+    DB-->>A: 返回座位狀態
+    A-->>F: 返回航班詳情 + 座位圖
+    F->>F: 顯示詳細資訊頁面
+    F-->>U: 展示航班詳情與座位選擇
+
+    U->>F: 點擊"立即預訂"
+    F->>F: 跳轉到訂票流程
+    Note over F: 銜接到原有 booking sequence diagram
+
+    Note over U,CS: 效能監控與快取管理
+    alt 查詢響應時間過長
+        A->>MQ: 發送效能告警事件
+        MQ->>AS: 效能分析
+        AS->>CS: 觸發快取預熱
+    end
