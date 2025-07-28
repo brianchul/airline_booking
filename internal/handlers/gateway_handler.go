@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/brianchul/airline_booking/internal/config"
+	"github.com/brianchul/airline_booking/pkg/errors"
 	"github.com/brianchul/airline_booking/pkg/jwt"
 )
 
@@ -37,35 +38,35 @@ func (h *GatewayHandler) ProxyWithAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(401, gin.H{"error": "Authorization header required"})
+			c.JSON(401, gin.H{"error": errors.ErrMissingAuthHeader.Error()})
 			c.Abort()
 			return
 		}
 
 		tokenParts := strings.Split(authHeader, " ")
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			c.JSON(401, gin.H{"error": "Invalid authorization header format"})
+			c.JSON(401, gin.H{"error": errors.ErrInvalidAuthFormat.Error()})
 			c.Abort()
 			return
 		}
 
 		claims, err := h.jwtUtil.ValidateJWT(tokenParts[1])
 		if err != nil {
-			c.JSON(401, gin.H{"error": "Invalid token"})
+			c.JSON(401, gin.H{"error": errors.ErrInvalidToken.Error()})
 			c.Abort()
 			return
 		}
 
 		email, ok := claims["email"].(string)
 		if !ok {
-			c.JSON(401, gin.H{"error": "Invalid token claims"})
+			c.JSON(401, gin.H{"error": errors.ErrInvalidTokenClaims.Error()})
 			c.Abort()
 			return
 		}
 
 		exp, ok := claims["exp"].(float64)
 		if !ok {
-			c.JSON(401, gin.H{"error": "Invalid token expiration"})
+			c.JSON(401, gin.H{"error": errors.ErrInvalidTokenExp.Error()})
 			c.Abort()
 			return
 		}
