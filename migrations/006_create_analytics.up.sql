@@ -29,7 +29,7 @@ CREATE INDEX idx_popular_routes_last_searched ON popular_routes(last_searched);
 COMMENT ON TABLE popular_routes IS 'Popular flight routes for cache optimization';
 COMMENT ON COLUMN popular_routes.score IS 'Popularity score for cache prioritization';
 
--- Create search_analytics table with partitioning
+-- Create search_analytics table without partitioning
 CREATE TABLE search_analytics (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT REFERENCES users(id),
@@ -45,26 +45,7 @@ CREATE TABLE search_analytics (
     user_agent TEXT,
     ip_address INET,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) PARTITION BY RANGE (created_at);
-
--- Create partitions for search_analytics (current month and next few months)
-CREATE TABLE search_analytics_2024_07 PARTITION OF search_analytics
-    FOR VALUES FROM ('2024-07-01') TO ('2024-08-01');
-
-CREATE TABLE search_analytics_2024_08 PARTITION OF search_analytics
-    FOR VALUES FROM ('2024-08-01') TO ('2024-09-01');
-
-CREATE TABLE search_analytics_2024_09 PARTITION OF search_analytics
-    FOR VALUES FROM ('2024-09-01') TO ('2024-10-01');
-
-CREATE TABLE search_analytics_2024_10 PARTITION OF search_analytics
-    FOR VALUES FROM ('2024-10-01') TO ('2024-11-01');
-
-CREATE TABLE search_analytics_2024_11 PARTITION OF search_analytics
-    FOR VALUES FROM ('2024-11-01') TO ('2024-12-01');
-
-CREATE TABLE search_analytics_2024_12 PARTITION OF search_analytics
-    FOR VALUES FROM ('2024-12-01') TO ('2025-01-01');
+);
 
 -- Create indexes for search_analytics
 CREATE INDEX idx_search_analytics_user_id ON search_analytics(user_id);

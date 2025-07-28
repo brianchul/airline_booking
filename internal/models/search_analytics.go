@@ -7,13 +7,13 @@ import (
 
 type SearchAnalytics struct {
 	ID                   uint       `gorm:"primaryKey;column:id"`
-	UserID               *uint      `gorm:"column:user_id"`
+	UserID               *uint64    `gorm:"column:user_id"`
 	DepartureAirportID   *uint      `gorm:"column:departure_airport_id"`
 	ArrivalAirportID     *uint      `gorm:"column:arrival_airport_id"`
 	DepartureDate        *time.Time `gorm:"type:date;column:departure_date"`
 	ReturnDate           *time.Time `gorm:"type:date;column:return_date"`
 	PassengerCount       int16      `gorm:"default:1;column:passenger_count"`
-	ClassPreference      string     `gorm:"column:class_preference"`
+	ClassPreference      *ClassType `gorm:"column:class_preference;type:class_type"`
 	SearchResultCount    int        `gorm:"column:search_result_count"`
 	ResponseTimeMs       int        `gorm:"column:response_time_ms"`
 	ConvertedToBooking   bool       `gorm:"default:false;column:converted_to_booking"`

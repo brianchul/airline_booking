@@ -9,8 +9,8 @@ type Airport struct {
 	City      string    `gorm:"column:city;type:varchar(50);not null"`
 	Country   string    `gorm:"column:country;type:varchar(2);not null"`
 	Timezone  string    `gorm:"column:timezone;type:varchar(50);not null"`
-	Latitude  int       `gorm:"column:latitude;type:decimal(10,8)"`
-	Longitude int       `gorm:"column:longitude;type:decimal(11,8)"`
+	Latitude  *float64  `gorm:"column:latitude;type:decimal(10,8)"`
+	Longitude *float64  `gorm:"column:longitude;type:decimal(11,8)"`
 	Active    bool      `gorm:"column:active;default:true"`
 	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime"`
