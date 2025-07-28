@@ -8,6 +8,7 @@ import (
 
 	"github.com/brianchul/airline_booking/internal/config"
 	"github.com/brianchul/airline_booking/internal/repository"
+	customError "github.com/brianchul/airline_booking/pkg/errors"
 	"github.com/brianchul/airline_booking/pkg/jwt"
 	"github.com/brianchul/airline_booking/pkg/utils"
 )
@@ -32,13 +33,13 @@ func (s *authService) Login(email, password string) (string, error) {
 	user, err := s.userRepo.GetByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", errors.New("invalid credentials")
+			return "", customError.ErrInvalidCredentials
 		}
 		return "", err
 	}
 
 	if !utils.CheckPassword(password, user.PasswordHash) {
-		return "", errors.New("invalid credentials")
+		return "", customError.ErrInvalidCredentials
 	}
 
 	token, err := s.jwtUtil.SignJWT(user.Email, time.Now().Add(24*time.Hour))

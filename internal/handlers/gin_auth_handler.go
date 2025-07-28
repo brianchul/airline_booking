@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/brianchul/airline_booking/internal/service"
+	"github.com/brianchul/airline_booking/pkg/errors"
 )
 
 type AuthHandler struct {
@@ -30,13 +31,13 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": errors.ErrInvalidRequest.Error()})
 		return
 	}
 
 	token, err := h.authService.Login(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": errors.ErrInvalidCredentials.Error()})
 		return
 	}
 
