@@ -1,16 +1,34 @@
-.PHONY: build run test clean docker-build docker-run deps migrate-up migrate-down seed-db seed-reset
+.PHONY: build build-gateway build-service run run-gateway run-service run-both test clean docker-build docker-run deps migrate-up migrate-down seed-db seed-reset
 
 # Build variables
-BINARY_NAME=airline-booking
+BINARY_NAME_GATEWAY=api-gateway
+BINARY_NAME_SERVICE=api-service
 DOCKER_IMAGE=airline-booking:latest
 
 # Build the application
-build:
-	go build -o bin/$(BINARY_NAME) ./cmd/api-gateway
+build: build-gateway build-service
+
+build-gateway:
+	go build -o bin/$(BINARY_NAME_GATEWAY) ./cmd/api-gateway
+
+build-service:
+	go build -o bin/$(BINARY_NAME_SERVICE) ./cmd/api-service
 
 # Run the application
-run:
+run: run-both
+
+run-gateway:
 	go run ./cmd/api-gateway
+
+run-service:
+	go run ./cmd/api-service
+
+run-both:
+	@echo "Starting API Service on port 8080..."
+	@go run ./cmd/api-service &
+	@sleep 2
+	@echo "Starting API Gateway on port 8000..."
+	@go run ./cmd/api-gateway
 
 # Run tests
 test:
@@ -24,7 +42,8 @@ test-coverage:
 # Clean build artifacts
 clean:
 	go clean
-	rm -f bin/$(BINARY_NAME)
+	rm -f bin/$(BINARY_NAME_GATEWAY)
+	rm -f bin/$(BINARY_NAME_SERVICE)
 	rm -f coverage.out
 
 # Install dependencies
