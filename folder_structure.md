@@ -3,16 +3,18 @@
 This document describes the purpose and contents of each directory in the airline booking system.
 
 ## Project Root
+
 ```
 airline-booking/
 ├── cmd/                    # Application entry points
-│   ├── api-gateway/        # API Gateway service
+│   ├── api-gateway/        # API reverse proxy service with jwt validation
+|   ├── api-service/        # API services to connect remain service
 │   ├── booking-service/    # Booking service
-│   ├── flight-service/     # Flight service  
+│   ├── flight-service/     # Flight service
 │   ├── notification-service/ # Notification service
 │   └── payment-service/    # Payment service
 ├── internal/               # Private application code
-│   ├── auth/               # Authentication logic
+[v]│   ├── auth/               # Authentication logic
 │   ├── cache/              # Redis cache management
 │   ├── config/             # Configuration management
 │   ├── database/           # Database connection
@@ -25,7 +27,7 @@ airline-booking/
 ├── pkg/                    # Public/shared libraries
 │   ├── api/                # API definitions and contracts
 │   ├── errors/             # Error definitions and handling
-│   ├── jwt/                # JWT token management
+[v]│   ├── jwt/                # JWT token management
 │   ├── logger/             # Logging utilities
 │   ├── pagination/         # Pagination helpers
 │   ├── response/           # Standard response formats
@@ -69,15 +71,19 @@ airline-booking/
 ## Detailed Directory Structure
 
 ### `/cmd` - Application Entry Points
+
 Contains the main applications for this project. Each subdirectory represents a service entry point.
+
 - `api-gateway/` - API Gateway service main entry point
-- `flight-service/` - Flight service main entry point  
+- `flight-service/` - Flight service main entry point
 - `booking-service/` - Booking service main entry point
 - `payment-service/` - Payment service main entry point
 - `notification-service/` - Notification service main entry point
 
 ### `/internal` - Private Application Code
+
 Contains private application code that shouldn't be imported by other applications.
+
 - `models/` - Data models and structures
 - `config/` - Configuration management
 - `database/` - Database connection and management
@@ -90,7 +96,9 @@ Contains private application code that shouldn't be imported by other applicatio
 - `service/` - Business logic layer
 
 ### `/pkg` - Public/Shared Libraries
+
 Contains code that's safe to use by external applications.
+
 - `api/` - API definitions and contracts
 - `utils/` - Utility functions
 - `errors/` - Error definitions and handling
@@ -101,30 +109,37 @@ Contains code that's safe to use by external applications.
 - `response/` - Standard response formats
 
 ### `/services` - Microservice Implementations
+
 Each subdirectory contains a complete microservice implementation.
 
 #### `/services/flight` - Flight Management Service
+
 - `handlers/` - HTTP handlers for flight operations
 - `repository/` - Flight data access layer
 - `service/` - Flight business logic
 
 #### `/services/booking` - Booking Management Service
+
 - `handlers/` - HTTP handlers for booking operations
 - `repository/` - Booking data access layer
 - `service/` - Booking business logic (including overbooking)
 
 #### `/services/payment` - Payment Processing Service
+
 - `handlers/` - HTTP handlers for payment operations
 - `repository/` - Payment data access layer
 - `service/` - Payment processing logic
 
 #### `/services/notification` - Notification Service
+
 - `handlers/` - HTTP handlers for notification operations
 - `repository/` - Notification data access layer
 - `service/` - Email/SMS notification logic
 
 ### `/migrations` - Database Migrations
+
 Contains PostgreSQL migration files for database schema management.
+
 - `001_create_core_entities.up.sql` - Create core entities (airlines, airports, aircraft)
 - `002_create_flights.up.sql` - Create flights and schedules tables
 - `003_create_inventory.up.sql` - Create flight inventory table
@@ -136,51 +151,67 @@ Contains PostgreSQL migration files for database schema management.
 - `*.down.sql` - Corresponding rollback migrations
 
 ### `/seeds` - Demo Data
+
 Contains SQL files and scripts for populating the database with demo data.
+
 - `01_users.sql` through `09_system_config.sql` - Structured demo data
 - `run_seeds.sh` - Intelligent seeding script with validation
 - `README.md` - Seeding documentation and usage guide
 
 ### `/deployments` - Deployment Configurations
+
 Contains deployment and orchestration configurations.
+
 - Kubernetes manifests
 - Docker Compose files
 - Prometheus configuration
 - Environment-specific configurations
 
 ### `/docs` - Documentation
+
 Contains project documentation.
+
 - API documentation
 - Architecture diagrams
 - Development guides
 - Deployment instructions
 
 ### `/tests` - Test Files
+
 Contains test files and test data.
+
 - Unit tests
 - Integration tests
 - Performance tests
 - Test utilities
 
 ### `/web` - Web Assets
+
 Contains web application assets.
+
 - `static/` - Static files (CSS, JS, images)
 - `templates/` - HTML templates
 
 ### `/scripts` - Build and Automation Scripts
+
 Contains build, deployment, and automation scripts.
+
 - Build scripts
 - CI/CD scripts
 - Utility scripts
 
 ### `/tools` - Development Tools
+
 Contains tools needed for development.
+
 - Code generation tools
 - Database tools
 - Testing tools
 
 ### `/configs` - Configuration Files
+
 Contains configuration files for different environments.
+
 - Development configuration
 - Production configuration
 - Test configuration
@@ -188,12 +219,14 @@ Contains configuration files for different environments.
 ## Additional Files in Project Root
 
 ### Core Configuration Files
+
 - **`go.mod`** - Go module definition and dependencies
 - **`docker-compose.yml`** - Multi-service Docker orchestration with PostgreSQL, Redis, RabbitMQ, Elasticsearch, monitoring stack
 - **`Dockerfile`** - Container build configuration for services
 - **`Makefile`** - Build automation, database operations, and development commands
 
 ### Documentation Files
+
 - **`db.dbml`** - Database schema definition in DBML format for PostgreSQL
 - **`folder_structure.md`** - This file, documenting the project structure
 - **`target.md`** - Project requirements and specifications
@@ -202,6 +235,7 @@ Contains configuration files for different environments.
 - **`flight_query_sequence.mermaid`** - Flight search sequence diagram
 
 ### Development Files
+
 - **`.gitignore`** - Git ignore patterns for Go projects
 
 ## Architecture Notes
@@ -216,6 +250,7 @@ This structure follows the **Clean Architecture** principles:
 ## Microservices Architecture
 
 The system is designed as a microservices architecture with:
+
 - **API Gateway**: Single entry point, handles routing, authentication, rate limiting
 - **Flight Service**: Manages flight data, schedules, and inventory
 - **Booking Service**: Handles booking lifecycle, overbooking logic
@@ -225,6 +260,7 @@ The system is designed as a microservices architecture with:
 ## High Concurrency Design
 
 The structure supports high concurrency through:
+
 - **Redis Caching**: Fast data access for hot data
 - **Message Queues**: Asynchronous processing
 - **Database Sharding**: Horizontal scaling capability
