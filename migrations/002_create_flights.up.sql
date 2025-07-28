@@ -41,7 +41,7 @@ COMMENT ON COLUMN flights.base_price_first IS 'Base price for first class';
 COMMENT ON COLUMN flights.duration_minutes IS 'Flight duration in minutes';
 COMMENT ON COLUMN flights.distance_km IS 'Flight distance in kilometers';
 
--- Create flight_schedules table with partitioning
+-- Create flight_schedules table without partitioning to avoid primary key constraint issues
 CREATE TABLE flight_schedules (
     id BIGSERIAL PRIMARY KEY,
     flight_id INTEGER NOT NULL REFERENCES flights(id),
@@ -56,7 +56,7 @@ CREATE TABLE flight_schedules (
     cancellation_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) PARTITION BY RANGE (departure_time);
+);
 
 -- Create trigger for flight_schedules updated_at
 CREATE TRIGGER update_flight_schedules_updated_at 
@@ -64,12 +64,7 @@ CREATE TRIGGER update_flight_schedules_updated_at
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
--- Create partitions for flight_schedules (current year and next year)
-CREATE TABLE flight_schedules_2024 PARTITION OF flight_schedules
-    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
-
-CREATE TABLE flight_schedules_2025 PARTITION OF flight_schedules
-    FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+-- Note: Partitioning removed for simplicity - can be added later if needed
 
 -- Create indexes for flight_schedules
 CREATE INDEX idx_flight_schedules_flight_id ON flight_schedules(flight_id);

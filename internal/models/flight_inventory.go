@@ -4,10 +4,18 @@ import (
 	"time"
 )
 
+type ClassType string
+
+const (
+	ClassTypeEconomy  ClassType = "ECONOMY"
+	ClassTypeBusiness ClassType = "BUSINESS"
+	ClassTypeFirst    ClassType = "FIRST"
+)
+
 type FlightInventory struct {
-	ID               uint      `gorm:"primaryKey;column:id"`
-	ScheduleID       uint      `gorm:"not null;column:schedule_id"`
-	ClassType        string    `gorm:"not null;column:class_type"`
+	ID               uint64    `gorm:"primaryKey;autoIncrement;column:id"`
+	ScheduleID       uint64    `gorm:"not null;column:schedule_id"`
+	ClassType        ClassType `gorm:"not null;column:class_type;type:class_type"`
 	TotalSeats       int       `gorm:"not null;column:total_seats"`
 	AvailableSeats   int       `gorm:"not null;column:available_seats"`
 	ReservedSeats    int       `gorm:"default:0;column:reserved_seats"`
