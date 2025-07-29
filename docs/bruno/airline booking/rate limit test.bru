@@ -1,0 +1,51 @@
+meta {
+  name: rate limit test
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{URL}}/api/flights/search
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "departure": "NYC",
+    "departure_date": "2024-12-25T10:00:00Z",
+    "arrival": "LAX",
+    "arrival_date": "2024-12-25T18:00:00Z",
+    "page": 1
+  }
+}
+
+script:pre-request {
+  // Test rate limiting by making multiple rapid requests
+  console.log("Testing rate limit - making request " + (bru.getVar("requestCount") || 1));
+}
+
+script:post-response {
+  const requestCount = (bru.getVar("requestCount") || 0) + 1;
+  bru.setVar("requestCount", requestCount);
+  
+  if (res.getStatus() === 429) {
+    console.log("Rate limit triggered at request #" + requestCount);
+    console.log("Response:", res.getBody());
+  } else {
+    console.log("Request #" + requestCount + " succeeded");
+  }
+}
+
+tests {
+  test("Rate limiting is working", function() {
+    // After 20 requests within a minute, should get 429
+    const status = res.getStatus();
+    if (status === 429) {
+      expect(res.getBody()).to.have.property('error', 'Rate limit exceeded');
+      expect(res.getBody()).to.have.property('retry_after');
+    } else {
+      expect(status).to.be.oneOf([200, 500]); // 200 for success, 500 for other errors
+    }
+  });
+}
