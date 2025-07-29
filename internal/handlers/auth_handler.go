@@ -6,20 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/brianchul/airline_booking/internal/service"
+	"github.com/brianchul/airline_booking/pkg/api"
 	"github.com/brianchul/airline_booking/pkg/errors"
 )
 
 type AuthHandler struct {
 	authService service.AuthService
-}
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-type LoginResponse struct {
-	Token string `json:"token"`
 }
 
 func NewAuthHandler(authService service.AuthService) *AuthHandler {
@@ -29,7 +21,7 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req LoginRequest
+	var req api.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errors.ErrInvalidRequest.Error()})
 		return
@@ -41,5 +33,5 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, LoginResponse{Token: token})
+	c.JSON(http.StatusOK, api.LoginResponse{Token: token})
 }
