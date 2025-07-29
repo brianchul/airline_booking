@@ -1,0 +1,21 @@
+meta {
+  name: search flights
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{URL}}/api/flights/search
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "departure": "",
+    "departure_date": "",
+    "arrival": "",
+    "arrival_date": "",
+    "page": 1
+  }
+}

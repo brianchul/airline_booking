@@ -21,9 +21,9 @@ type Flight struct {
 	UpdatedAt            time.Time `gorm:"column:updated_at;autoUpdateTime"`
 
 	// Foreign key relationships
-	Airline           Airline `gorm:"foreignKey:AirlineID;references:ID"`
-	DepartureAirport  Airport `gorm:"foreignKey:DepartureAirportID;references:ID"`
-	ArrivalAirport    Airport `gorm:"foreignKey:ArrivalAirportID;references:ID"`
+	Airline           Airline  `gorm:"foreignKey:AirlineID;references:ID"`
+	DepartureAirport  Airport  `gorm:"foreignKey:DepartureAirportID;references:ID"`
+	ArrivalAirport    Airport  `gorm:"foreignKey:ArrivalAirportID;references:ID"`
 	Aircraft          Aircraft `gorm:"foreignKey:AircraftID;references:ID"`
 }
 

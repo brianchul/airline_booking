@@ -17,3 +17,6 @@ var (
 var (
 	ErrInvalidRequest = errors.New("invalid request format")
 )
+var (
+	ErrServerError = errors.New("server error, please try again")
+)
