@@ -7,6 +7,8 @@ import (
 
 	"github.com/brianchul/airline_booking/internal/config"
 	"github.com/brianchul/airline_booking/internal/handlers"
+	"github.com/brianchul/airline_booking/internal/middleware"
+	"github.com/brianchul/airline_booking/pkg/redis"
 )
 
 func main() {
@@ -18,6 +20,11 @@ func main() {
 	gatewayHandler, err := handlers.NewGatewayHandler(cfg)
 	if err != nil {
 		log.Fatal("Failed to create gateway handler:", err)
+	}
+
+	redisClient, err := redis.NewClient(cfg)
+	if err != nil {
+		log.Fatal("Failed to connect to Redis:", err)
 	}
 
 	r := gin.Default()
@@ -37,7 +44,7 @@ func main() {
 	public.Use(gatewayHandler.ProxyPublic())
 	{
 		public.Any("/login", func(c *gin.Context) {})
-		public.Any("/flights/search", func(c *gin.Context) {})
+		public.Any("/flights/search", middleware.FlightSearchRedisRateLimiter(redisClient), func(c *gin.Context) {})
 	}
 
 	// Health check
