@@ -1,0 +1,46 @@
+meta {
+  name: create book flight
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{URL}}/api/flights/bookings
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+      "flight_number": "AA1234",
+      "departure_airport": "JFK",
+      "departure_dateTime": "2024-03-15T14:30:00Z",
+      "passengers": [
+        {
+          "FirstName": "John",
+          "LastName": "Doe",
+          "date_of_birth": "1985-06-15T00:00:00Z",
+          "passport_number": "A12345678",
+          "nationality": "US",
+          "meal_preference": "vegetarian",
+          "special_needs": "wheelchair assistance"
+        },
+        {
+          "FirstName": "Jane",
+          "LastName": "Smith",
+          "date_of_birth": "1990-08-22T00:00:00Z",
+          "passport_number": "B87654321",
+          "nationality": "US",
+          "meal_preference": "halal",
+          "special_needs": ""
+        }
+      ],
+      "booking_source": "web",
+      "class_type": "FIRST",
+      "special_request": "window seat preferred"
+    }
+}

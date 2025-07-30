@@ -33,10 +33,13 @@ func main() {
 	protected := r.Group("/api")
 	protected.Use(gatewayHandler.ProxyWithAuth())
 	{
-		protected.Any("/bookings/*path", func(c *gin.Context) {})
-		protected.Any("/user/*path", func(c *gin.Context) {})
-		protected.Any("/profile/*path", func(c *gin.Context) {})
-		protected.Any("/payment/*path", func(c *gin.Context) {})
+		// Booking endpoint with rate limiting and duplicate prevention
+		protected.POST("/flights/bookings",
+			middleware.BookingRedisRateLimiter(redisClient),
+			middleware.BookingDuplicatePreventionMiddleware(redisClient),
+			gatewayHandler.ProxyBookingWithUUID(),
+			func(c *gin.Context) {})
+
 	}
 
 	// Public routes (no JWT required)

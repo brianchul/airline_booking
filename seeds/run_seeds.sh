@@ -5,12 +5,10 @@
 
 set -e
 
-# Database connection parameters
-DB_HOST=${DB_HOST:-localhost}
-DB_PORT=${DB_PORT:-5432}
+# Docker container parameters
+CONTAINER_NAME=${CONTAINER_NAME:-airline_booking-postgres-master-1}
 DB_NAME=${DB_NAME:-airline_booking}
 DB_USER=${DB_USER:-postgres}
-DB_PASSWORD=${DB_PASSWORD:-rootpass}
 
 # Colors for output
 RED='\033[0;31m'
@@ -48,7 +46,7 @@ execute_sql_file() {
         exit 1
     fi
 
-    if PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f "$file" > /dev/null 2>&1; then
+    if docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME < "$file" > /dev/null 2>&1; then
         print_success "$description completed"
     else
         print_error "Failed to execute $description"
@@ -60,11 +58,11 @@ execute_sql_file() {
 check_database_connection() {
     print_status "Checking database connection..."
 
-    if PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT 1;" > /dev/null 2>&1; then
+    if docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "SELECT 1;" > /dev/null 2>&1; then
         print_success "Database connection successful"
     else
-        print_error "Cannot connect to database. Please check your connection parameters."
-        print_error "Host: $DB_HOST, Port: $DB_PORT, Database: $DB_NAME, User: $DB_USER"
+        print_error "Cannot connect to database. Please check your Docker container and parameters."
+        print_error "Container: $CONTAINER_NAME, Database: $DB_NAME, User: $DB_USER"
         exit 1
     fi
 }
@@ -73,7 +71,7 @@ check_database_connection() {
 check_tables_exist() {
     print_status "Checking if database schema exists..."
 
-    local table_count=$(PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('airlines', 'airports', 'flights');" 2>/dev/null || echo "0")
+    local table_count=$(docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('airlines', 'airports', 'flights');" 2>/dev/null || echo "0")
 
     if [ "$table_count" -lt 3 ]; then
         print_error "Database schema not found. Please run migrations first:"
@@ -88,7 +86,7 @@ check_tables_exist() {
 check_existing_data() {
     print_status "Checking for existing data..."
 
-    local user_count=$(PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0")
+    local user_count=$(docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null || echo "0")
 
     if [ "$user_count" -gt 0 ]; then
         print_warning "Data already exists in the database."
@@ -126,7 +124,7 @@ seed_database() {
 display_summary() {
     print_status "Seeding Summary:"
 
-    local counts=$(PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "
+    local counts=$(docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -t -c "
         SELECT
             'Users: ' || (SELECT COUNT(*) FROM users) || E'\n' ||
             'Airlines: ' || (SELECT COUNT(*) FROM airlines) || E'\n' ||
@@ -158,23 +156,19 @@ show_help() {
     echo
     echo "Options:"
     echo "  -h, --help              Show this help message"
-    echo "  --host HOST             Database host (default: localhost)"
-    echo "  --port PORT             Database port (default: 5432)"
+    echo "  --container CONTAINER   Docker container name (default: airline_booking-postgres-master-1)"
     echo "  --database DATABASE     Database name (default: airline_booking)"
     echo "  --user USER             Database user (default: postgres)"
-    echo "  --password PASSWORD     Database password (default: rootpass)"
     echo
     echo "Environment Variables:"
-    echo "  DB_HOST                 Database host"
-    echo "  DB_PORT                 Database port"
+    echo "  CONTAINER_NAME          Docker container name"
     echo "  DB_NAME                 Database name"
     echo "  DB_USER                 Database user"
-    echo "  DB_PASSWORD             Database password"
     echo
     echo "Examples:"
-    echo "  $0                                    # Use default connection"
-    echo "  $0 --host db.example.com --port 5433 # Custom host and port"
-    echo "  DB_PASSWORD=mypass $0                 # Custom password via env var"
+    echo "  $0                                    # Use default container"
+    echo "  $0 --container my-db-container        # Custom container name"
+    echo "  CONTAINER_NAME=my-db $0               # Custom container via env var"
 }
 
 # Parse command line arguments
@@ -184,12 +178,8 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
-        --host)
-            DB_HOST="$2"
-            shift 2
-            ;;
-        --port)
-            DB_PORT="$2"
+        --container)
+            CONTAINER_NAME="$2"
             shift 2
             ;;
         --database)
@@ -198,10 +188,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --user)
             DB_USER="$2"
-            shift 2
-            ;;
-        --password)
-            DB_PASSWORD="$2"
             shift 2
             ;;
         *)

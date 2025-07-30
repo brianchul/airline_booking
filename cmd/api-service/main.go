@@ -9,8 +9,10 @@ import (
 	"github.com/brianchul/airline_booking/internal/config"
 	"github.com/brianchul/airline_booking/internal/database"
 	"github.com/brianchul/airline_booking/internal/handlers"
+	"github.com/brianchul/airline_booking/internal/queue"
 	"github.com/brianchul/airline_booking/internal/repository"
 	"github.com/brianchul/airline_booking/internal/service"
+	"github.com/brianchul/airline_booking/pkg/rabbitmq"
 	"github.com/brianchul/airline_booking/pkg/redis"
 )
 
@@ -35,24 +37,36 @@ func main() {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
 
+	rabbitmqClient := rabbitmq.NewClient(cfg.RabbitMqConfig)
+	rabbitmqClient.Connect()
+
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, cfg)
 	authHandler := handlers.NewAuthHandler(authService)
 	flightRepo := repository.NewFlightRepository(slaveDb)
 	scheduleRepo := repository.NewFlightScheduleRepository(slaveDb)
 	inventoryRepo := repository.NewFlightInventoryRepository(slaveDb)
-	
+
 	flightCache := cache.NewRedisFlightCache(redisClient)
 	versionTracker := cache.NewRedisVersionTracker(redisClient)
 	flightService := service.NewFlightService(flightRepo, scheduleRepo, inventoryRepo, flightCache, versionTracker)
 	searchFlightHandler := handlers.NewSearchFlightHandler(flightService)
+	bookingQueue := queue.NewRabbitMQBookingQueue(rabbitmqClient, &cfg.RabbitMqQueueConfig)
+	if err := bookingQueue.Start(); err != nil {
+		log.Fatal("Failed to start booking queue:", err)
+	}
+	bookingCache := cache.NewRedisBookingStatusCache(redisClient)
+	bookFlightService := service.NewBookingService(bookingQueue, bookingCache)
+	bookFlightHandler := handlers.NewBookFlightsHandler(bookFlightService)
 
 	r := gin.Default()
 
 	api := r.Group("/api")
 	{
 		api.POST("/login", authHandler.Login)
-		api.POST("/flights/search", searchFlightHandler.SearchFlightWithPages)
+		flightGroup := api.Group("/flights")
+		flightGroup.POST("/search", searchFlightHandler.SearchFlightWithPages)
+		flightGroup.POST("/bookings", bookFlightHandler.ProxyBookingToQueue)
 	}
 
 	r.GET("/health", func(c *gin.Context) {

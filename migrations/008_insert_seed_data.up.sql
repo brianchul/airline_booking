@@ -1,10 +1,10 @@
 -- Insert seed data for testing and JWT authentication
 
 -- Insert test users (3 hardcoded users for JWT authentication)
-INSERT INTO users (username, password_hash, email, first_name, last_name) VALUES
-('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@airline.com', 'Admin', 'User'),
-('user1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user1@example.com', 'John', 'Doe'),
-('user2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'user2@example.com', 'Jane', 'Smith');
+INSERT INTO users (username, password_hash, email, first_name, last_name, tier) VALUES
+('admin', '$2a$10$v9RZSrtXi5rwgMzDpYHM7ujqvswgStgE1W4wG5KHe1pg6ejC.Bek2', 'admin@airline.com', 'Admin', 'User', 'vip'),
+('user1', '$2a$10$v9RZSrtXi5rwgMzDpYHM7ujqvswgStgE1W4wG5KHe1pg6ejC.Bek2', 'user1@example.com', 'John', 'Doe', 'normal'),
+('user2', '$2a$10$v9RZSrtXi5rwgMzDpYHM7ujqvswgStgE1W4wG5KHe1pg6ejC.Bek2', 'user2@example.com', 'Jane', 'Smith', 'vip');
 
 -- Insert sample airlines
 INSERT INTO airlines (code, name, country) VALUES

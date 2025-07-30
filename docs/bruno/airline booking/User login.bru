@@ -12,13 +12,13 @@ post {
 
 body:json {
   {
-    "email":"user1@example.com",
+    "email":"john.doe@example.com",
     "password": "password123"
   }
 }
 
 script:post-response {
-  const accessToken = res.body.result.accessToken;
+  const accessToken = res.body.token;
   bru.setVar("access_token", accessToken);
   
 }

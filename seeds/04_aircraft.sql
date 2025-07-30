@@ -29,4 +29,4 @@ INSERT INTO aircraft (model, manufacturer, capacity_economy, capacity_business, 
 -- Cargo Converted (for cargo flights)
 ('Boeing 747-8F', 'Boeing', 0, 0, 0),
 ('Airbus A330-200F', 'Airbus', 0, 0, 0)
-ON CONFLICT (model, manufacturer) DO NOTHING;
+ON CONFLICT DO NOTHING;

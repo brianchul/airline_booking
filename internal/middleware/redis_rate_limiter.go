@@ -91,3 +91,9 @@ func FlightSearchRedisRateLimiter(redisClient *redis.Client) gin.HandlerFunc {
 	limiter := NewRedisRateLimiter(redisClient, 20) // 20 requests per minute
 	return limiter.Middleware()
 }
+
+// BookingRedisRateLimiter creates a Redis-based rate limiter for booking requests
+func BookingRedisRateLimiter(redisClient *redis.Client) gin.HandlerFunc {
+	limiter := NewRedisRateLimiter(redisClient, 5) // 5 requests per minute
+	return limiter.Middleware()
+}
