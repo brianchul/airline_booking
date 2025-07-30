@@ -40,6 +40,9 @@ func main() {
 			gatewayHandler.ProxyBookingWithUUID(),
 			func(c *gin.Context) {})
 
+		// Get booking status endpoint
+		protected.GET("/flights/bookings/:uuid", gatewayHandler.ProxyProtected())
+
 	}
 
 	// Public routes (no JWT required)

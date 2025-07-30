@@ -58,6 +58,7 @@ func main() {
 	bookingCache := cache.NewRedisBookingStatusCache(redisClient)
 	bookFlightService := service.NewBookingService(bookingQueue, bookingCache)
 	bookFlightHandler := handlers.NewBookFlightsHandler(bookFlightService)
+	getBookingStatusHandler := handlers.NewGetBookingStatusHandler(bookFlightService)
 
 	r := gin.Default()
 
@@ -67,6 +68,8 @@ func main() {
 		flightGroup := api.Group("/flights")
 		flightGroup.POST("/search", searchFlightHandler.SearchFlightWithPages)
 		flightGroup.POST("/bookings", bookFlightHandler.ProxyBookingToQueue)
+		flightGroup.GET("/bookings/:uuid", getBookingStatusHandler.GetBookingStatus)
+
 	}
 
 	r.GET("/health", func(c *gin.Context) {

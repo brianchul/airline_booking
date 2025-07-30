@@ -94,6 +94,12 @@ func (h *GatewayHandler) ProxyPublic() gin.HandlerFunc {
 	}
 }
 
+func (h *GatewayHandler) ProxyProtected() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		h.proxy.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
 // ProxyBookingWithUUID handles booking requests and generates booking UUID
 func (h *GatewayHandler) ProxyBookingWithUUID() gin.HandlerFunc {
 	return func(c *gin.Context) {

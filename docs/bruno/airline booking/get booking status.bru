@@ -1,0 +1,15 @@
+meta {
+  name: get booking status
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{URL}}/api/flights/bookings/BK-20250730-37FB4E71
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
