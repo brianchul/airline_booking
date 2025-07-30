@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -19,6 +20,14 @@ type Config struct {
 	RedisPort           string
 	RabbitMqConfig      rabbitmq.Config
 	RabbitMqQueueConfig queue.BookingQueueConfig
+	BookingRetryConfig  BookingRetryConfig
+}
+
+type BookingRetryConfig struct {
+	MaxRetries        int
+	InitialDelayMs    int
+	MaxDelayMs        int
+	BackoffMultiplier float64
 }
 
 func Load() (*Config, error) {
@@ -40,6 +49,13 @@ func Load() (*Config, error) {
 		PrefetchCount:      10,
 	}
 
+	BookingRetryConfig := BookingRetryConfig{
+		MaxRetries:        getEnvInt("BOOKING_MAX_RETRIES", 3),
+		InitialDelayMs:    getEnvInt("BOOKING_INITIAL_DELAY_MS", 100),
+		MaxDelayMs:        getEnvInt("BOOKING_MAX_DELAY_MS", 2000),
+		BackoffMultiplier: getEnvFloat("BOOKING_BACKOFF_MULTIPLIER", 2.0),
+	}
+
 	return &Config{
 		JWTSecret:           getEnv("JWT_SECRET", "default-secret-key"),
 		DatabaseDSN:         getEnv("DATABASE_DSN", "host=localhost user=postgres password=postgres dbname=airline_booking port=5432 sslmode=disable"),
@@ -49,12 +65,31 @@ func Load() (*Config, error) {
 		RedisPort:           getEnv("REDIS_PORT", "6379"),
 		RabbitMqConfig:      RabbitMqConfig,
 		RabbitMqQueueConfig: RabbitMqQueueConfig,
+		BookingRetryConfig:  BookingRetryConfig,
 	}, nil
 }
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		if floatValue, err := strconv.ParseFloat(value, 64); err == nil {
+			return floatValue
+		}
 	}
 	return defaultValue
 }
