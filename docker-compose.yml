@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Database
@@ -19,19 +19,19 @@ services:
       -c max_wal_senders=3
       -c max_replication_slots=3
 
-  postgres-slave:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: rootpass
-      POSTGRES_DB: airline_booking
-      PGUSER: postgres
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_slave_data:/var/lib/postgresql/data
-    depends_on:
-      - postgres-master
+  # postgres-slave:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: rootpass
+  #     POSTGRES_DB: airline_booking
+  #     PGUSER: postgres
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - postgres_slave_data:/var/lib/postgresql/data
+  #   depends_on:
+  #     - postgres-master
 
   # Cache
   redis:
@@ -59,45 +59,65 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-  # Search Engine
-  elasticsearch:
-    image: elasticsearch:8.8.0
+  # # Search Engine
+  # elasticsearch:
+  #   image: elasticsearch:8.8.0
+  #   environment:
+  #     - discovery.type=single-node
+  #     - xpack.security.enabled=false
+  #   ports:
+  #     - "9200:9200"
+  #   volumes:
+  #     - elasticsearch_data:/usr/share/elasticsearch/data
+
+  # # Monitoring
+  # prometheus:
+  #   image: prom/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./deployments/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  # grafana:
+  #   image: grafana/grafana
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+
+  # # Tracing
+  # jaeger:
+  #   image: jaegertracing/all-in-one:latest
+  #   ports:
+  #     - "16686:16686"
+  #     - "14268:14268"
+
+  # Booking Service
+  booking-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: booking-service
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
+      DATABASE_DSN: "host=postgres-master user=postgres password=rootpass dbname=airline_booking port=5432 sslmode=disable"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: "amqp://admin:admin123@rabbitmq:5672/"
+      JWT_SECRET: "booking-service-secret"
     ports:
-      - "9200:9200"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-
-  # Monitoring
-  prometheus:
-    image: prom/prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./deployments/prometheus.yml:/etc/prometheus/prometheus.yml
-
-  grafana:
-    image: grafana/grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-
-  # Tracing
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    ports:
-      - "16686:16686"
-      - "14268:14268"
+      - "8082:8081"  # Health check port
+    depends_on:
+      - postgres-master
+      - redis
+      - rabbitmq
+    restart: unless-stopped
 
 volumes:
   postgres_master_data:
-  postgres_slave_data:
+  # postgres_slave_data:
   redis_data:
   rabbitmq_data:
-  elasticsearch_data:
-  grafana_data:
+  # elasticsearch_data:
+  # grafana_data:

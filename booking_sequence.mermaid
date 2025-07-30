@@ -35,7 +35,7 @@ sequenceDiagram
     A-->>F: 返回 booking-uuid
     F->>F: 啟動輪詢 (每2秒)
 
-    Note over U,ALERT: Phase 2: Redis-Only 庫存預檢和請求處理
+    Note over U,ALERT: Phase 2: 庫存預檢和請求處理
     A->>R: 檢查航班庫存快取
     R-->>A: 返回快取庫存
     A->>R: 檢查用戶活躍訂票數
@@ -53,7 +53,7 @@ sequenceDiagram
     end
 
     loop 前端輪詢
-        F->>A: GET /api/bookings/{uuid}/status
+        F->>A: GET /api/flights/bookings/{uuid}
         A->>R: Redis查詢狀態
         R-->>A: 返回狀態
         A-->>F: 返回狀態 (QUEUED)
@@ -115,7 +115,7 @@ sequenceDiagram
     end
 
     loop 前端輪詢
-        F->>A: GET /api/bookings/{uuid}/status
+        F->>A: GET /api/flights/bookings/{uuid}
         A->>R: 查詢狀態
         R-->>A: 返回 RESERVED
         A-->>F: 返回座位信息 + 倒數計時
