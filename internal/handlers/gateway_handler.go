@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
@@ -9,8 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/brianchul/airline_booking/internal/config"
+	"github.com/brianchul/airline_booking/pkg/api"
 	"github.com/brianchul/airline_booking/pkg/errors"
 	"github.com/brianchul/airline_booking/pkg/jwt"
+	"github.com/brianchul/airline_booking/pkg/uuid"
 )
 
 type GatewayHandler struct {
@@ -64,6 +67,13 @@ func (h *GatewayHandler) ProxyWithAuth() gin.HandlerFunc {
 			return
 		}
 
+		tier, ok := claims["tier"].(string)
+		if !ok {
+			c.JSON(401, gin.H{"error": errors.ErrInvalidTokenClaims.Error()})
+			c.Abort()
+			return
+		}
+
 		exp, ok := claims["exp"].(float64)
 		if !ok {
 			c.JSON(401, gin.H{"error": errors.ErrInvalidTokenExp.Error()})
@@ -73,14 +83,37 @@ func (h *GatewayHandler) ProxyWithAuth() gin.HandlerFunc {
 
 		c.Request.Header.Set("X-User-Email", email)
 		c.Request.Header.Set("X-Username", email)
+		c.Request.Header.Set("X-User-Tier", tier)
 		c.Request.Header.Set("X-Auth-Time", strconv.FormatInt(int64(exp), 10))
-
-		h.proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }
 
 func (h *GatewayHandler) ProxyPublic() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h.proxy.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
+// ProxyBookingWithUUID handles booking requests and generates booking UUID
+func (h *GatewayHandler) ProxyBookingWithUUID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Generate booking UUID
+		bookingUUID, err := uuid.GenerateBookingUUID()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to generate booking UUID",
+			})
+			c.Abort()
+			return
+		}
+		// Add booking UUID to request headers for downstream services
+		c.Request.Header.Set("X-Booking-UUID", bookingUUID)
+		h.proxy.ServeHTTP(c.Writer, c.Request)
+		// Return booking UUID immediately to client
+		c.JSON(http.StatusAccepted, api.BookFlightResponse{
+			BookingUUID: bookingUUID,
+			Status:      "processing",
+			Message:     "Booking request received and is being processed",
+		})
 	}
 }

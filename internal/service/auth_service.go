@@ -42,7 +42,7 @@ func (s *authService) Login(email, password string) (string, error) {
 		return "", customError.ErrInvalidCredentials
 	}
 
-	token, err := s.jwtUtil.SignJWT(user.Email, time.Now().Add(24*time.Hour))
+	token, err := s.jwtUtil.SignJWT(user.Email, string(user.Tier), time.Now().Add(24*time.Hour))
 	if err != nil {
 		return "", err
 	}

@@ -17,9 +17,10 @@ func NewJWT(secret string) *JWT {
 	}
 }
 
-func (j *JWT) SignJWT(email string, expireAt time.Time) (string, error) {
+func (j *JWT) SignJWT(email string, tier string, expireAt time.Time) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": email,
+		"tier":  tier,
 		"exp":   expireAt.Unix(),
 	})
 	return token.SignedString([]byte(j.secret))

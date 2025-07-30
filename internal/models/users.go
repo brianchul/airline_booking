@@ -4,6 +4,13 @@ import (
 	"time"
 )
 
+type Tier string
+
+const (
+	UserTierNormal Tier = "normal"
+	UserTierVip    Tier = "vip"
+)
+
 type User struct {
 	ID           uint64    `gorm:"primaryKey;autoIncrement;column:id"`
 	Username     string    `gorm:"size:50;uniqueIndex;not null;column:username"`
@@ -13,6 +20,7 @@ type User struct {
 	FirstName    string    `gorm:"size:50;column:first_name"`
 	LastName     string    `gorm:"size:50;column:last_name"`
 	Active       bool      `gorm:"default:true;column:active"`
+	Tier         Tier      `gorm:"size:100;column:tier"`
 	CreatedAt    time.Time `gorm:"default:CURRENT_TIMESTAMP;column:created_at"`
 	UpdatedAt    time.Time `gorm:"default:CURRENT_TIMESTAMP;column:updated_at"`
 }
